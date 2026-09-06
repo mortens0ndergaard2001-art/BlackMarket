@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a1018">
+  <title>Casino Exchange</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="brand-mark">CX</div>
+        <div>
+          <div class="brand-title">CASINO EXCHANGE</div>
+          <div class="brand-subtitle">Fiktivt marked · kun casinopenge</div>
+        </div>
+      </div>
+
+      <div class="topbar-metrics">
+        <div class="metric">
+          <span class="metric-label">MARKED</span>
+          <span id="marketStatus" class="status-pill closed">CLOSED</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">TID TIL LUK</span>
+          <span id="marketClock" class="metric-value mono">45:00</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">TOP GAINER</span>
+          <span id="topGainer" class="metric-value">—</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">AKTUELT HOLD</span>
+          <span id="currentTeamLabel" class="metric-value">Ingen</span>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <button id="leaderboardBtn" class="btn ghost">Leaderboard</button>
+        <button id="teamLoginBtn" class="btn primary">Hold-login</button>
+        <button id="logoutBtn" class="btn danger hidden">Log ud</button>
+        <button id="adminBtn" class="btn ghost">Admin</button>
+      </div>
+    </header>
+
+    <div class="ticker-wrap" aria-label="Markedsticker">
+      <div id="tickerTrack" class="ticker-track"></div>
+    </div>
+
+    <main class="main-grid">
+      <section class="market-column">
+        <section id="teamSummary" class="team-summary hidden"></section>
+
+        <section class="panel market-overview-panel">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">LIVE MARKET</span>
+              <h1>Markedsoverblik</h1>
+            </div>
+            <div class="legend">
+              <span><i class="dot up"></i> Stiger</span>
+              <span><i class="dot down"></i> Falder</span>
+            </div>
+          </div>
+          <div id="assetGrid" class="asset-grid"></div>
+        </section>
+
+        <section id="tradePanel" class="panel trade-panel">
+          <div id="tradePanelContent"></div>
+        </section>
+
+        <section id="tradeHistoryPanel" class="panel history-panel hidden">
+          <div class="panel-heading compact">
+            <div>
+              <span class="eyebrow">DIT HOLD</span>
+              <h2>Seneste handler</h2>
+            </div>
+          </div>
+          <div id="tradeHistory"></div>
+        </section>
+      </section>
+
+      <aside class="news-column">
+        <section class="panel news-panel">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow red">MARKET NEWS</span>
+              <h2>Live nyhedsfeed</h2>
+            </div>
+            <span class="live-badge"><i></i> LIVE</span>
+          </div>
+          <div id="newsFeed" class="news-feed"></div>
+        </section>
+      </aside>
+    </main>
+
+    <footer class="footer">
+      <span>Casino Exchange er et spil med fiktive aktiver og fiktive casinopenge.</span>
+      <span id="saveIndicator">Gemmer lokalt i denne browser</span>
+    </footer>
+  </div>
+
+  <!-- Hold-login -->
+  <div id="teamLoginModal" class="modal-backdrop hidden">
+    <div class="modal-card narrow">
+      <button class="modal-close" data-close-modal="teamLoginModal">×</button>
+      <span class="eyebrow">HOLD-LOGIN</span>
+      <h2>Log ind på jeres hold</h2>
+      <p class="muted">Vælg hold og indtast den 4-cifrede holdkode.</p>
+      <label class="field">
+        <span>Hold</span>
+        <select id="loginTeamSelect"></select>
+      </label>
+      <label class="field">
+        <span>Holdkode</span>
+        <input id="loginCodeInput" type="password" inputmode="numeric" maxlength="4" placeholder="••••">
+      </label>
+      <div id="loginError" class="form-error hidden"></div>
+      <button id="loginSubmitBtn" class="btn primary wide">Log ind</button>
+    </div>
+  </div>
+
+  <!-- Admin-login -->
+  <div id="adminLoginModal" class="modal-backdrop hidden">
+    <div class="modal-card narrow">
+      <button class="modal-close" data-close-modal="adminLoginModal">×</button>
+      <span class="eyebrow">INSTRUKTØR</span>
+      <h2>Admin-adgang</h2>
+      <label class="field">
+        <span>Admin-kode</span>
+        <input id="adminCodeInput" type="password" inputmode="numeric" placeholder="••••">
+      </label>
+      <div id="adminLoginError" class="form-error hidden"></div>
+      <button id="adminLoginSubmitBtn" class="btn primary wide">Åbn adminpanel</button>
+    </div>
+  </div>
+
+  <!-- Adminpanel -->
+  <div id="adminPanelModal" class="modal-backdrop hidden">
+    <div class="modal-card admin-modal">
+      <button class="modal-close" data-close-modal="adminPanelModal">×</button>
+      <div class="admin-head">
+        <div>
+          <span class="eyebrow">INSTRUKTØR-KONTROL</span>
+          <h2>Adminpanel</h2>
+        </div>
+        <span id="adminMarketStatus" class="status-pill closed">CLOSED</span>
+      </div>
+
+      <div class="admin-grid">
+        <section class="admin-section">
+          <h3>Marked</h3>
+          <div class="button-grid three">
+            <button id="adminStartBtn" class="btn success">Start / fortsæt</button>
+            <button id="adminPauseBtn" class="btn warning">Pause</button>
+            <button id="adminCloseBtn" class="btn danger">Luk marked</button>
+          </div>
+          <div class="button-grid two top-gap">
+            <button id="adminRallyBtn" class="btn ghost">🚀 Market rally</button>
+            <button id="adminCrashBtn" class="btn ghost">📉 Market crash</button>
+          </div>
+          <button id="adminResetBtn" class="btn danger-outline wide top-gap">Nulstil hele spillet</button>
+        </section>
+
+        <section class="admin-section">
+          <h3>Leaderboard</h3>
+          <div class="button-grid two">
+            <button id="showLeaderboardBtn" class="btn primary">Vis fullscreen</button>
+            <button id="toggleLeaderboardBtn" class="btn ghost">Skjul/vis adgang</button>
+          </div>
+          <div id="adminLeaderboard" class="admin-leaderboard"></div>
+        </section>
+      </div>
+
+      <section class="admin-section full">
+        <div class="section-title-row">
+          <h3>Hold og startkapital</h3>
+          <span class="muted small">Ændringen justerer kontantbeholdningen direkte.</span>
+        </div>
+        <div id="adminTeamsTable" class="admin-table-wrap"></div>
+      </section>
+
+      <section class="admin-section full">
+        <div class="section-title-row">
+          <h3>Aktiv-påvirkning</h3>
+          <span class="muted small">+/- påvirker trenden og fader gradvist ud.</span>
+        </div>
+        <div id="adminAssetControls"></div>
+      </section>
+
+      <section class="admin-section full">
+        <h3>Skjult insider/hacker-event</h3>
+        <div class="hacker-row">
+          <select id="hackerAssetSelect"></select>
+          <select id="hackerDelaySelect">
+            <option value="20">20 sek.</option>
+            <option value="30" selected>30 sek.</option>
+            <option value="40">40 sek.</option>
+          </select>
+          <select id="hackerStrengthSelect">
+            <option value="medium">Middel</option>
+            <option value="large" selected>Stor</option>
+          </select>
+          <button id="hackerTriggerBtn" class="btn warning">Aktivér skjult effekt</button>
+        </div>
+        <p class="muted small">Ingen officiel nyhed bliver vist. Effekten udløses først efter forsinkelsen.</p>
+      </section>
+
+      <section class="admin-section full">
+        <h3>Udgiv nyhed</h3>
+        <div class="news-publisher">
+          <label class="field">
+            <span>Aktiv</span>
+            <select id="customNewsAsset"></select>
+          </label>
+          <label class="field">
+            <span>Effekt</span>
+            <select id="customNewsEffect">
+              <option value="-0.75">Meget negativ</option>
+              <option value="-0.38">Lidt negativ</option>
+              <option value="0" selected>Neutral/tvetydig</option>
+              <option value="0.32">Lidt positiv</option>
+              <option value="0.70">Meget positiv</option>
+            </select>
+          </label>
+          <label class="field wide-field">
+            <span>Overskrift</span>
+            <input id="customNewsHeadline" type="text" placeholder="Skriv en breaking-overskrift">
+          </label>
+          <label class="field wide-field">
+            <span>Kort tekst</span>
+            <textarea id="customNewsBody" rows="2" placeholder="Hvad er der sket?"></textarea>
+          </label>
+          <button id="publishCustomNewsBtn" class="btn primary">Udgiv nu</button>
+        </div>
+      </section>
+
+      <section class="admin-section full">
+        <h3>Forudskrevne nyheder</h3>
+        <div class="preset-publisher">
+          <select id="presetNewsSelect"></select>
+          <button id="publishPresetNewsBtn" class="btn primary">Udgiv valgt nyhed</button>
+        </div>
+      </section>
+
+      <section class="admin-section full">
+        <h3>Alle handler</h3>
+        <div id="adminTradeLog" class="admin-trade-log"></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Leaderboard -->
+  <div id="leaderboardModal" class="modal-backdrop hidden">
+    <div class="leaderboard-screen">
+      <button class="modal-close light" data-close-modal="leaderboardModal">×</button>
+      <span class="eyebrow gold">CASINO EXCHANGE</span>
+      <h2>LIVE LEADERBOARD</h2>
+      <div id="leaderboardContent" class="leaderboard-content"></div>
+    </div>
+  </div>
+
+  <!-- Breaking news overlay -->
+  <div id="breakingOverlay" class="breaking-overlay hidden">
+    <div class="breaking-label">BREAKING NEWS</div>
+    <div id="breakingHeadline" class="breaking-headline"></div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/market.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/admin.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
