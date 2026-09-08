@@ -503,3 +503,95 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
   .rank-money { grid-column: 2; }
   .breaking-overlay { top: 18px; grid-template-columns: 1fr; }
 }
+
+/* ===== Multiplayer additions ===== */
+.boot-screen {
+  position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center;
+  background:
+    radial-gradient(circle at 50% 10%, rgba(74,168,255,.16), transparent 28%),
+    #071019;
+}
+.boot-card { text-align: center; padding: 34px; }
+.boot-card h1 { letter-spacing: .09em; font-size: 22px; margin: 18px 0 8px; }
+.boot-card p { color: var(--muted); margin: 0 0 20px; }
+.brand-mark.large { width: 68px; height: 68px; margin: 0 auto; font-size: 22px; border-radius: 18px; }
+.boot-spinner {
+  width: 28px; height: 28px; margin: 0 auto; border-radius: 50%;
+  border: 3px solid #1c3345; border-top-color: var(--accent); animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.connection-pill, .engine-pill {
+  display: inline-flex; align-items: center; gap: 7px; border-radius: 999px;
+  border: 1px solid var(--line); padding: 5px 9px; font: 900 10px/1 var(--mono);
+}
+.connection-pill::before, .engine-pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #70879a; }
+.connection-pill.online { color: var(--up); border-color: rgba(57,217,138,.28); }
+.connection-pill.online::before { background: var(--up); box-shadow: 0 0 0 4px rgba(57,217,138,.1); }
+.connection-pill.connecting { color: var(--warning); }
+.connection-pill.offline { color: var(--down); border-color: rgba(255,95,114,.3); }
+.connection-pill.offline::before { background: var(--down); }
+.engine-pill.active { color: var(--up); border-color: rgba(57,217,138,.3); background: rgba(57,217,138,.06); }
+.engine-pill.active::before { background: var(--up); }
+.engine-pill.idle { color: var(--muted); }
+.admin-head-status { display: flex; align-items: center; gap: 8px; padding-right: 38px; }
+.admin-notice {
+  margin: -4px 0 14px; padding: 11px 13px; border-radius: 11px;
+  border: 1px solid rgba(74,168,255,.25); background: rgba(74,168,255,.07);
+  color: #b8cbda; font-size: 11px; line-height: 1.5;
+}
+.admin-notice strong { color: #dcecf8; }
+.share-url {
+  margin: 14px 0; padding: 12px; border: 1px solid var(--line); background: #08141e;
+  border-radius: 10px; color: #dbe8f2; font-size: 11px; overflow-wrap: anywhere;
+}
+.screen-leaderboard-panel { margin-top: 16px; padding: 18px; }
+.screen-rank {
+  display: grid; grid-template-columns: 34px 1fr auto; gap: 9px; align-items: center;
+  padding: 10px 0; border-top: 1px solid var(--line); font-size: 12px;
+}
+.screen-rank:first-child { border-top: 0; }
+.screen-rank .n { font: 900 15px/1 var(--mono); color: #6f889a; }
+.screen-rank:first-child .n { color: var(--gold); }
+.screen-rank .money { font: 900 12px/1 var(--mono); }
+.network-warning {
+  border: 1px solid rgba(255,95,114,.35); background: rgba(255,95,114,.08); color: #ffabb5;
+  border-radius: 10px; padding: 10px 12px; font-size: 11px;
+}
+
+body.screen-mode .topbar-actions #teamLoginBtn,
+body.screen-mode .topbar-actions #logoutBtn,
+body.screen-mode .topbar-actions #adminBtn,
+body.screen-mode .topbar-actions #screenModeBtn { display: none !important; }
+body.screen-mode .trade-panel,
+body.screen-mode .history-panel,
+body.screen-mode .team-summary { display: none !important; }
+body.screen-mode .screen-leaderboard-panel { display: block !important; }
+body.screen-mode .news-panel { max-height: 56vh; position: sticky; top: 130px; }
+body.screen-mode .asset-grid { grid-template-columns: repeat(5, minmax(150px,1fr)); }
+body.screen-mode .asset-card { min-height: 210px; }
+body.screen-mode .asset-price { font-size: 25px; }
+
+@media (max-width: 680px) {
+  .brand-subtitle { display: none; }
+  .topbar { gap: 10px; padding: 10px 12px; }
+  .topbar-actions { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); width: 100%; }
+  .topbar-actions .btn { width: 100%; }
+  #screenModeBtn, #leaderboardBtn { display: none; }
+  .market-overview-panel, .trade-panel, .history-panel, .news-panel { padding: 13px; }
+  .panel-heading h1 { font-size: 20px; }
+  .asset-card { padding: 14px; }
+  .asset-price { font-size: 24px; }
+  .sparkline { height: 66px; }
+  .trade-shell { display: block; }
+  .chart-area { margin-bottom: 10px; }
+  .big-chart { height: 170px; }
+  .team-summary { display: grid; grid-template-columns: repeat(2,1fr); }
+  .team-summary .team-card { grid-column: 1 / -1; }
+  .summary-value { font-size: 17px; }
+  .admin-head { align-items: flex-start; }
+  .admin-head-status { flex-direction: column; align-items: flex-end; }
+}
+body.screen-mode .screen-leaderboard-panel.hidden { display: none !important; }
+.positive { color: var(--up) !important; }
+.negative { color: var(--down) !important; }

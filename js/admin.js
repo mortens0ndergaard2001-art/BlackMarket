@@ -1,233 +1,208 @@
 window.CasinoAdmin = (() => {
-  const C = window.CasinoConfig;
-  const D = window.CasinoData;
-  const S = window.CasinoState;
-  const M = window.CasinoMarket;
-  const U = window.CasinoUI;
+  const Store = window.CasinoStore;
+  const Api = window.CasinoApi;
+  const UI = window.CasinoUI;
+  const Host = window.CasinoMarketHost;
   const $ = id => document.getElementById(id);
+  let bound = false;
+  let engineOk = false;
 
-  let authenticated = false;
+  function totalForTeam(team) {
+    const s = Store.get();
+    const invested = s.adminHoldings
+      .filter(h => h.team_id === team.id)
+      .reduce((sum, h) => sum + Number(h.quantity) * Number(s.assets.find(a => a.id === h.asset_id)?.price || 0), 0);
+    return Number(team.cash) + invested;
+  }
 
   function renderAdmin() {
-    if (!authenticated) return;
-    const s = S.get();
+    const s = Store.get();
+    if (!s.isAdmin) return;
 
+    const g = s.game || { status: "closed", leaderboard_visible: true };
     const status = $("adminMarketStatus");
-    status.textContent = s.market.status.toUpperCase();
-    status.className = `status-pill ${s.market.status}`;
+    status.textContent = String(g.status).toUpperCase();
+    status.className = `status-pill ${g.status}`;
 
-    $("adminTeamsTable").innerHTML = `
-      <table class="admin-table">
-        <thead><tr><th>HOLD</th><th>STARTKAPITAL</th><th>KONTANTER</th><th>INVESTERET</th><th>TOTAL</th><th>JUSTER CASH</th></tr></thead>
-        <tbody>
-          ${Object.values(s.teams).map(t => {
-            const p = M.portfolio(t.id);
-            return `<tr>
-              <td><strong>${U.escapeHtml(t.name)}</strong></td>
-              <td>
-                <div style="display:grid;grid-template-columns:1fr auto;gap:6px">
-                  <input id="start-${t.id}" type="number" min="0" step="50" value="${Math.round(t.startingCash)}">
-                  <button class="btn ghost" data-save-start="${t.id}">Sæt start</button>
-                </div>
-              </td>
-              <td>${U.fmtMoney(p.cash)}</td>
-              <td>${U.fmtMoney(p.invested)}</td>
-              <td><strong>${U.fmtMoney(p.total)}</strong></td>
-              <td>
-                <div style="display:grid;grid-template-columns:1fr auto;gap:6px">
-                  <input id="cash-${t.id}" type="number" min="0" step="50" value="${Math.round(t.cash)}">
-                  <button class="btn ghost" data-save-cash="${t.id}">Gem cash</button>
-                </div>
-              </td>
-            </tr>`;
-          }).join("")}
-        </tbody>
-      </table>
-    `;
+    const engine = $("engineStatus");
+    const active = g.status === "open" && (engineOk || Host.isActive());
+    engine.textContent = active ? "ENGINE ACTIVE" : g.status === "open" ? "ENGINE STARTER…" : "ENGINE IDLE";
+    engine.className = `engine-pill ${active ? "active" : "idle"}`;
 
-    const ranks = M.leaderboard();
-    $("adminLeaderboard").innerHTML = ranks.map((r,i) =>
-      `<div class="admin-rank"><span>${i+1}. ${U.escapeHtml(r.team.name)}</span><strong>${U.fmtMoney(r.portfolio.total)}</strong></div>`
-    ).join("");
+    $("adminTeamsTable").innerHTML = `<table class="admin-table">
+      <thead><tr><th>HOLD</th><th>START</th><th>CASH</th><th>TOTAL</th><th>NY VÆRDI</th><th>HANDLING</th></tr></thead>
+      <tbody>${s.adminTeams.map(t => `<tr>
+        <td><strong>${UI.esc(t.name)}</strong></td>
+        <td>${UI.fmtMoney(t.starting_cash)}</td>
+        <td>${UI.fmtMoney(t.cash)}</td>
+        <td><strong>${UI.fmtMoney(totalForTeam(t))}</strong></td>
+        <td><input id="cash-${t.id}" type="number" min="0" step="50" value="${Math.round(Number(t.cash))}"></td>
+        <td><div style="display:flex;gap:5px;flex-wrap:wrap"><button class="btn ghost" data-admin-cash="${t.id}">Sæt cash</button><button class="btn primary" data-admin-start="${t.id}">Sæt start</button></div></td>
+      </tr>`).join("")}</tbody>
+    </table>`;
 
-    $("adminAssetControls").innerHTML = D.ASSETS.map(a => `
-      <div class="asset-control-row">
-        <div class="asset-control-name"><strong>${a.ticker}</strong><span>${U.escapeHtml(a.name)}</span></div>
-        <button class="btn ghost impact-btn pos" data-impact="${a.id}|positive|small">+ Lille</button>
-        <button class="btn ghost impact-btn pos" data-impact="${a.id}|positive|medium">+ Middel</button>
-        <button class="btn ghost impact-btn pos" data-impact="${a.id}|positive|large">+ Stor</button>
-        <button class="btn ghost impact-btn neg" data-impact="${a.id}|negative|small">− Lille</button>
-        <button class="btn ghost impact-btn neg" data-impact="${a.id}|negative|medium">− Middel</button>
-        <button class="btn ghost impact-btn neg" data-impact="${a.id}|negative|large">− Stor</button>
-      </div>
-    `).join("");
+    $("adminLeaderboard").innerHTML = s.leaderboard.map((r,i) => `<div class="admin-rank"><span>${i+1}. ${UI.esc(r.team_name)}</span><strong>${UI.fmtMoney(r.total_wealth)}</strong></div>`).join("") || `<div class="empty-state">Skjult / ikke klar.</div>`;
 
-    const allTrades = Object.values(s.teams)
-      .flatMap(t => t.trades)
-      .sort((a,b) => b.timestamp - a.timestamp)
-      .slice(0, 100);
-    $("adminTradeLog").innerHTML = allTrades.length ? `
-      <div class="history-list">${allTrades.map(t => `
-        <div class="history-row">
-          <span class="mono muted">${U.timeOf(t.timestamp)}</span>
-          <span class="history-type ${t.side}">${t.side === "buy" ? "KØB" : "SALG"}</span>
-          <span>${U.escapeHtml(t.teamName)} · ${t.quantity} ${t.ticker} @ ${U.fmtPrice(t.price)}</span>
-          <strong>${U.fmtMoney(t.total)}</strong>
-        </div>
-      `).join("")}</div>` : `<div class="empty-state">Ingen handler endnu.</div>`;
-
-    $("toggleLeaderboardBtn").textContent = s.market.leaderboardVisible ? "Skjul adgang" : "Vis adgang";
-  }
-
-  function populateSelectors() {
-    const assetOptions = D.ASSETS.map(a => `<option value="${a.id}">${a.ticker} · ${U.escapeHtml(a.name)}</option>`).join("");
-    $("hackerAssetSelect").innerHTML = assetOptions;
-    $("customNewsAsset").innerHTML = assetOptions;
-
-    $("presetNewsSelect").innerHTML = D.NEWS_EVENTS.map(n => {
-      const a = M.getAssetDef(n.assetId);
-      const used = S.get().releasedNewsIds.includes(n.id);
-      return `<option value="${n.id}">${used ? "✓ " : ""}${a.ticker}: ${U.escapeHtml(n.headline)}</option>`;
+    $("adminAssetControls").innerHTML = s.assets.map(a => {
+      const eng = s.adminEngine.find(e => e.asset_id === a.id);
+      const impact = eng ? Number(eng.news_impact) : 0;
+      return `<div class="asset-control-row">
+        <div class="asset-control-name"><strong>${UI.esc(a.ticker)}</strong><span>${UI.esc(a.name)} · impact ${impact >= 0 ? "+" : ""}${impact.toFixed(2)}</span></div>
+        <button class="btn ghost impact-btn pos" data-impact="${a.id}|0.18">+ Lille</button>
+        <button class="btn ghost impact-btn pos" data-impact="${a.id}|0.38">+ Middel</button>
+        <button class="btn ghost impact-btn pos" data-impact="${a.id}|0.68">+ Stor</button>
+        <button class="btn ghost impact-btn neg" data-impact="${a.id}|-0.18">− Lille</button>
+        <button class="btn ghost impact-btn neg" data-impact="${a.id}|-0.38">− Middel</button>
+        <button class="btn ghost impact-btn neg" data-impact="${a.id}|-0.68">− Stor</button>
+      </div>`;
     }).join("");
+
+    const options = s.assets.map(a => `<option value="${a.id}">${UI.esc(a.ticker)} · ${UI.esc(a.name)}</option>`).join("");
+    preserveSelect("hackerAssetSelect", options);
+    preserveSelect("customNewsAsset", options);
+
+    const releasedTemplates = new Set(s.news.map(n => n.template_id).filter(Boolean));
+    const oldTemplate = $("presetNewsSelect")?.value;
+    $("presetNewsSelect").innerHTML = s.adminTemplates.map(n => {
+      const a = s.assets.find(x => x.id === n.asset_id);
+      return `<option value="${n.id}" ${releasedTemplates.has(n.id) ? "disabled" : ""}>${releasedTemplates.has(n.id) ? "✓ " : ""}${UI.esc(a?.ticker || n.asset_id)} · ${UI.esc(n.headline)}</option>`;
+    }).join("");
+    if (oldTemplate && [...$("presetNewsSelect").options].some(o => o.value === oldTemplate && !o.disabled)) $("presetNewsSelect").value = oldTemplate;
+
+    $("adminTradeLog").innerHTML = s.adminTrades.length ? `<div class="history-list">${s.adminTrades.map(t => {
+      const team = s.adminTeams.find(x => x.id === t.team_id);
+      const asset = s.assets.find(x => x.id === t.asset_id);
+      return `<div class="history-row"><span class="mono muted">${UI.timeOf(t.created_at)}</span><span class="history-type ${t.side}">${t.side === "buy" ? "KØB" : "SALG"}</span><span>${UI.esc(team?.name || t.team_id)} · ${t.quantity} ${UI.esc(asset?.ticker || t.asset_id)} @ ${UI.fmtPrice(t.price)}</span><strong>${UI.fmtMoney(t.total)}</strong></div>`;
+    }).join("")}</div>` : `<div class="empty-state">Ingen handler endnu.</div>`;
+
+    $("toggleLeaderboardBtn").textContent = g.leaderboard_visible ? "Skjul leaderboard" : "Vis leaderboard";
   }
 
-  function tryAdminLogin() {
-    const value = $("adminCodeInput").value.trim();
-    if (value !== C.ADMIN_CODE) {
-      $("adminLoginError").textContent = "Forkert admin-kode.";
+  function preserveSelect(id, html) {
+    const el = $(id); if (!el) return;
+    const value = el.value; el.innerHTML = html;
+    if (value && [...el.options].some(o => o.value === value)) el.value = value;
+  }
+
+  async function login() {
+    const btn = $("adminLoginSubmitBtn");
+    btn.disabled = true; btn.textContent = "Kontrollerer…";
+    try {
+      const ok = await Api.adminLogin($("adminCodeInput").value.trim());
+      if (!ok) {
+        $("adminLoginError").textContent = "Forkert admin-kode.";
+        $("adminLoginError").classList.remove("hidden");
+        return;
+      }
+      $("adminCodeInput").value = "";
+      $("adminLoginError").classList.add("hidden");
+      UI.closeModal("adminLoginModal");
+      renderAdmin();
+      UI.openModal("adminPanelModal");
+      Host.start();
+      UI.toast("ADMIN KLAR", "Markedsmotoren er klar. Lad fanen være åben under spillet.");
+    } catch (err) {
+      console.error(err);
+      $("adminLoginError").textContent = err.message || "Admin-login fejlede.";
       $("adminLoginError").classList.remove("hidden");
-      return;
+    } finally {
+      btn.disabled = false; btn.textContent = "Åbn adminpanel";
     }
-    authenticated = true;
-    $("adminCodeInput").value = "";
-    $("adminLoginError").classList.add("hidden");
-    U.closeModal("adminLoginModal");
-    populateSelectors();
-    renderAdmin();
-    U.openModal("adminPanelModal");
   }
 
-  function publishCustomNews() {
-    const headline = $("customNewsHeadline").value.trim();
-    const body = $("customNewsBody").value.trim();
-    if (!headline) {
-      U.toast("NYHED IKKE UDGIVET", "Skriv en overskrift først.", "error");
-      return;
+  async function action(label, fn) {
+    try {
+      await fn();
+      renderAdmin();
+      UI.toast(label, "Ændringen er sendt til alle enheder realtime.");
+    } catch (err) {
+      console.error(err);
+      UI.toast("ADMIN-FEJL", err.message || "Handlingen kunne ikke udføres.", "error");
     }
-    const news = M.publishNews({
-      assetId: $("customNewsAsset").value,
-      effect: Number($("customNewsEffect").value),
+  }
+
+  async function publishCustom() {
+    const headline = $("customNewsHeadline").value.trim();
+    if (!headline) { UI.toast("NYHED IKKE UDGIVET", "Skriv en overskrift først.", "error"); return; }
+    const effect = Number($("customNewsEffect").value);
+    await action("NYHED UDGIVET", () => Api.publishCustomNews(
+      $("customNewsAsset").value,
       headline,
-      body,
-      breaking: Math.abs(Number($("customNewsEffect").value)) >= .5
-    });
+      $("customNewsBody").value.trim(),
+      effect,
+      Math.abs(effect) >= .5
+    ));
     $("customNewsHeadline").value = "";
     $("customNewsBody").value = "";
-    U.toast("NYHED UDGIVET", news.headline);
-    U.showBreaking(news);
-  }
-
-  function publishPreset() {
-    const id = $("presetNewsSelect").value;
-    const newsDef = D.NEWS_EVENTS.find(n => n.id === id);
-    if (!newsDef) return;
-    const news = M.publishNews(newsDef);
-    U.toast("NYHED UDGIVET", news.headline);
-    U.showBreaking(news);
-    populateSelectors();
   }
 
   function bindEvents() {
+    if (bound) return; bound = true;
+
     $("adminBtn").addEventListener("click", () => {
-      if (authenticated) {
-        populateSelectors();
-        renderAdmin();
-        U.openModal("adminPanelModal");
-      } else {
-        U.openModal("adminLoginModal");
-        setTimeout(() => $("adminCodeInput").focus(), 50);
-      }
+      if (Store.get().isAdmin) { renderAdmin(); UI.openModal("adminPanelModal"); Host.start(); }
+      else { UI.openModal("adminLoginModal"); setTimeout(() => $("adminCodeInput").focus(), 50); }
     });
+    $("adminLoginSubmitBtn").addEventListener("click", login);
+    $("adminCodeInput").addEventListener("keydown", e => { if (e.key === "Enter") login(); });
 
-    $("adminLoginSubmitBtn").addEventListener("click", tryAdminLogin);
-    $("adminCodeInput").addEventListener("keydown", e => { if (e.key === "Enter") tryAdminLogin(); });
+    $("adminStartBtn").addEventListener("click", () => action("MARKET OPEN", async () => { await Api.marketStart(); Host.start(); }));
+    $("adminPauseBtn").addEventListener("click", () => action("MARKET PAUSED", () => Api.marketPause()));
+    $("adminCloseBtn").addEventListener("click", () => action("MARKET CLOSED", () => Api.marketClose()));
+    $("adminRallyBtn").addEventListener("click", () => action("MARKET RALLY", () => Api.applyGlobalImpact(.68)));
+    $("adminCrashBtn").addEventListener("click", () => action("MARKET CRASH", () => Api.applyGlobalImpact(-.68)));
 
-    $("adminStartBtn").addEventListener("click", () => {
-      M.startMarket(); U.toast("MARKET OPEN", "Handel er nu åben.");
-    });
-    $("adminPauseBtn").addEventListener("click", () => {
-      M.pauseMarket(); U.toast("MARKET PAUSED", "Handler og prisopdateringer er sat på pause.");
-    });
-    $("adminCloseBtn").addEventListener("click", () => {
-      M.closeMarket(); U.toast("MARKET CLOSED", "Markedet er lukket for handler.");
-    });
-    $("adminRallyBtn").addEventListener("click", () => {
-      M.triggerGlobal("positive", "large"); U.toast("MARKET RALLY", "Alle aktiver har fået positiv medvind.");
-    });
-    $("adminCrashBtn").addEventListener("click", () => {
-      M.triggerGlobal("negative", "large"); U.toast("MARKET CRASH", "Alle aktiver har fået negativt pres.", "error");
-    });
-
-    $("adminResetBtn").addEventListener("click", () => {
-      const ok = window.confirm("Nulstil HELE spillet? Alle handler, priser, nyheder og saldi går tilbage til start.");
-      if (!ok) return;
-      S.reset();
-      populateSelectors();
-      renderAdmin();
-      U.toast("SPIL NULSTILLET", "Alt er tilbage til konfigurationens startværdier.");
-    });
-
-    $("showLeaderboardBtn").addEventListener("click", () => {
-      U.renderLeaderboard();
-      U.openModal("leaderboardModal");
-    });
-
-    $("toggleLeaderboardBtn").addEventListener("click", () => {
-      S.mutate(s => { s.market.leaderboardVisible = !s.market.leaderboardVisible; });
-    });
+    $("toggleLeaderboardBtn").addEventListener("click", () => action("LEADERBOARD OPDATERET", () => Api.setLeaderboardVisible(!Store.get().game?.leaderboard_visible)));
+    $("showLeaderboardBtn").addEventListener("click", () => UI.openModal("leaderboardModal"));
 
     $("hackerTriggerBtn").addEventListener("click", () => {
-      const assetId = $("hackerAssetSelect").value;
+      const a = UI.assetById($("hackerAssetSelect").value);
       const delay = Number($("hackerDelaySelect").value);
-      const strength = $("hackerStrengthSelect").value;
-      M.queueHiddenEvent(assetId, delay, strength, "positive");
-      const a = M.getAssetDef(assetId);
-      U.toast("SKJULT EVENT ARMERET", `${a.ticker} får en skjult positiv effekt om ${delay} sek.`);
+      const effect = Number($("hackerStrengthSelect").value);
+      action("HACKER-EVENT ARMERET", () => Api.queueHiddenEvent(a.id, effect, delay));
+      UI.toast("SKJULT EVENT", `${a.ticker} påvirkes positivt om ${delay} sekunder.`);
     });
 
-    $("publishCustomNewsBtn").addEventListener("click", publishCustomNews);
-    $("publishPresetNewsBtn").addEventListener("click", publishPreset);
+    $("publishCustomNewsBtn").addEventListener("click", publishCustom);
+    $("publishPresetNewsBtn").addEventListener("click", () => {
+      const id = $("presetNewsSelect").value;
+      if (id) action("NYHED UDGIVET", () => Api.publishTemplate(id));
+    });
+
+    $("adminResetBtn").addEventListener("click", async () => {
+      if (!window.confirm("Nulstil HELE spillet? Priser, nyheder, handler, beholdninger og saldi går tilbage til start. Hold-login på telefonerne bevares.")) return;
+      await action("SPIL NULSTILLET", () => Api.resetGame());
+    });
 
     document.addEventListener("click", e => {
-      const saveStart = e.target.closest("[data-save-start]");
-      if (saveStart) {
-        const teamId = saveStart.dataset.saveStart;
-        const input = document.getElementById(`start-${teamId}`);
-        M.setTeamStartingCash(teamId, Number(input.value));
-        U.toast("STARTKAPITAL SAT", `${S.get().teams[teamId].name} starter med ${U.fmtMoney(S.get().teams[teamId].startingCash)}. Beholdninger og handler for holdet er nulstillet.`);
+      const cash = e.target.closest("[data-admin-cash]");
+      if (cash) {
+        const id = cash.dataset.adminCash, value = Number($("cash-" + id).value);
+        action("SALDO OPDATERET", () => Api.setTeamCash(id, value, false));
       }
-
-      const save = e.target.closest("[data-save-cash]");
-      if (save) {
-        const teamId = save.dataset.saveCash;
-        const input = document.getElementById(`cash-${teamId}`);
-        M.setTeamCash(teamId, Number(input.value));
-        U.toast("SALDO OPDATERET", `${S.get().teams[teamId].name} har nu ${U.fmtMoney(S.get().teams[teamId].cash)} i kontanter.`);
+      const start = e.target.closest("[data-admin-start]");
+      if (start) {
+        const id = start.dataset.adminStart, value = Number($("cash-" + id).value);
+        action("STARTKAPITAL OPDATERET", () => Api.setTeamCash(id, value, true));
       }
-
       const impact = e.target.closest("[data-impact]");
       if (impact) {
-        const [assetId, direction, level] = impact.dataset.impact.split("|");
-        M.triggerImpact(assetId, direction, level);
-        const a = M.getAssetDef(assetId);
-        U.toast("MARKEDSPÅVIRKNING", `${a.ticker}: ${direction === "positive" ? "positiv" : "negativ"} ${level}.`);
+        const [assetId, effect] = impact.dataset.impact.split("|");
+        const a = UI.assetById(assetId);
+        action("MARKEDSPÅVIRKNING", () => Api.applyImpact(assetId, Number(effect)));
+        UI.toast(a?.ticker || assetId, `${Number(effect) > 0 ? "Positiv" : "Negativ"} påvirkning aktiveret.`);
       }
     });
 
-    S.subscribe(() => {
-      if (authenticated && !$("adminPanelModal").classList.contains("hidden")) renderAdmin();
+    window.addEventListener("casino:engine", e => {
+      engineOk = Boolean(e.detail?.ok);
+      if (Store.get().isAdmin) renderAdmin();
+    });
+
+    Store.subscribe(() => {
+      if (Store.get().isAdmin && !$("adminPanelModal").classList.contains("hidden")) renderAdmin();
     });
   }
 
-  return { bindEvents, renderAdmin, populateSelectors };
+  return { bindEvents, renderAdmin, login };
 })();

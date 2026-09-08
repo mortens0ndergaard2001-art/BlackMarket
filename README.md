@@ -1,45 +1,182 @@
-# Casino Exchange
+# Casino Exchange 2.0 — Realtime Multiplayer
 
-En statisk, lokal-first handelsplatform til Funcamp/Ungledercamp. Den kan hostes direkte på GitHub Pages og kræver ingen backend.
+Denne version er lavet til:
 
-## Start
+- GitHub Pages som frontend
+- Supabase som fælles database/realtime
+- deltagere der køber/sælger på egne telefoner
+- én fælles markedspris for alle
+- storskærm med live marked, nyheder og leaderboard
+- admin/instruktørpanel som styrer markedet
 
-1. Upload hele projektmappen til et GitHub-repository.
-2. Gå til **Settings → Pages**.
-3. Vælg **Deploy from a branch**.
-4. Vælg `main` og `/ (root)`.
-5. Åbn den GitHub Pages-adresse GitHub viser.
+## 1. Supabase
 
-Du kan også teste lokalt ved bare at åbne `index.html`, eller via en lille lokal webserver.
+Projektet er allerede konfigureret til:
 
-## Standardkoder
+- Project URL: `https://wxsustirazcowzlfugyg.supabase.co`
+- Publishable key: ligger i `js/config.js`
 
-Admin: `9090`
+Publishable key må gerne ligge i browserkode. Brug ALDRIG en secret/service-role key i GitHub.
 
-- Hold 1: `1472`
-- Hold 2: `5831`
-- Hold 3: `2746`
-- Hold 4: `6104`
-- Hold 5: `8325`
-- Hold 6: `4198`
-- Hold 7: `7653`
-- Hold 8: `9261`
+### Slå Anonymous Sign-ins til
 
-**Skift koderne i `js/config.js` før campen.**
+I Supabase Dashboard:
 
-## Vigtige filer
+1. Authentication
+2. Find Anonymous Sign-ins / Anonymous provider
+3. Aktivér det
 
-- `js/config.js` – intervaller, markedstid, holdkoder, startkapital og tuning.
-- `js/data.js` – de fem aktiver og alle forudskrevne nyheder.
-- `js/state.js` – localStorage/persistence.
-- `js/market.js` – markedsmodel, nyhedseffekt, handler, leaderboard.
-- `js/ui.js` – frontend rendering, grafer, login, handel og feedback.
-- `js/admin.js` – instruktørpanel.
-- `js/app.js` – opstart og timers.
-- `css/style.css` – design og responsivitet.
+### Kør databasen
 
-## GitHub Pages-begrænsning
+1. Åbn `supabase/setup.sql`
+2. Supabase Dashboard → SQL Editor → New query
+3. Indsæt hele filen
+4. Tryk Run
+5. Den skal ende med Success
 
-GitHub Pages er statisk hosting. Denne version deler derfor data via `localStorage` på den samme browser/origin. Den er lavet til én computer/storskærm, hvor holdene logger ind på skift.
+Filen kan køres på et nyt projekt og kan også opgradere den tidligere Casino Exchange v1-database.
 
-Hvis flere forskellige telefoner/computere skal handle samtidig, kræver det en realtime backend som Firebase eller Supabase.
+## 2. GitHub Pages
+
+Erstat de gamle filer i dit repository med indholdet fra denne mappe.
+
+Repository-roden skal se sådan ud:
+
+```text
+index.html
+README.md
+css/
+  style.css
+js/
+  config.js
+  store.js
+  supabase.js
+  api.js
+  market-host.js
+  ui.js
+  admin.js
+  app.js
+supabase/
+  setup.sql
+```
+
+GitHub Pages:
+
+- Settings → Pages
+- Deploy from a branch
+- `main`
+- `/ (root)`
+
+## 3. Links
+
+Hvis din normale adresse er:
+
+```text
+https://DITNAVN.github.io/casino-exchange/
+```
+
+så er deltagerlinket den normale adresse.
+
+Storskærm:
+
+```text
+https://DITNAVN.github.io/casino-exchange/?screen=1
+```
+
+Admin kan åbnes med knappen Admin eller direkte:
+
+```text
+https://DITNAVN.github.io/casino-exchange/?admin=1
+```
+
+## 4. Standardkoder
+
+- Hold 1: 1472
+- Hold 2: 5831
+- Hold 3: 2746
+- Hold 4: 6104
+- Hold 5: 8325
+- Hold 6: 4198
+- Hold 7: 7653
+- Hold 8: 9261
+- Admin: 9090
+
+Koderne ligger hashed i Supabase og er ikke lagt som klar tekst i browserens JavaScript.
+
+## 5. Sådan kører spillet
+
+1. Åbn admin på instruktørens laptop.
+2. Log ind som admin.
+3. LAD ADMINFANEN VÆRE ÅBEN UNDER HELE MARKEDSDelen.
+4. Åbn storskærmslinket på projektor/TV.
+5. Deltagerne åbner det normale link på telefonerne.
+6. De vælger hold og skriver holdkode.
+7. Admin trykker Start / fortsæt.
+
+Adminbrowseren kalder `market_tick()` cirka hvert 5. sekund. Selve prisberegningen sker inde i Supabase/Postgres, så alle telefoner får præcis samme officielle priser.
+
+Hvis adminfanen bliver lukket eller computeren går i dvale, stopper prisopdateringerne, indtil en adminfane åbnes igen.
+
+## 6. Realtime
+
+Disse data synkroniseres via Supabase Realtime:
+
+- markedsstatus
+- priser
+- prisgraf
+- nyheder
+- eget holds saldo
+- eget holds beholdninger
+- egne handler
+- leaderboard
+
+## 7. Handelssikkerhed
+
+Køb/salg udføres med databasefunktionen `execute_trade()`.
+
+Det betyder bl.a.:
+
+- man kan ikke købe for flere penge end holdet har
+- man kan ikke sælge mere end holdet ejer
+- short selling er blokeret
+- to telefoner fra samme hold kan ikke bruge de samme penge samtidig
+- telefonen bestemmer ikke selv handelsprisen; Supabase bruger den officielle pris
+
+## 8. Markedsmotor
+
+Den centrale Postgres-funktion `market_tick()` bruger:
+
+- normal markedsstøj
+- individuel volatilitet
+- grundtrend
+- momentum
+- nyhedspåvirkning
+- globale rally/crash-events
+- decay af news impact
+
+Planlagte nyheder udløses automatisk efter markedsminutterne i `news_templates`.
+
+## 9. Fejlsøgning
+
+### Siden bliver stående på “Forbinder til markedet”
+
+Kontrollér:
+
+- Anonymous Sign-ins er slået til
+- `supabase/setup.sql` er kørt uden fejl
+- internetforbindelsen virker
+- Project URL/publishable key i `js/config.js` er korrekte
+
+### Telefonerne ser ikke de samme priser
+
+Sørg for at:
+
+- alle bruger den nye multiplayer-version
+- adminfanen er åben
+- admin er logget ind
+- markedet står OPEN
+
+### Markedet står stille
+
+Adminfanen er markeds-host. Åbn Admin, log ind og lad fanen stå åben.
+

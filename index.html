@@ -2,19 +2,29 @@
 <html lang="da">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0a1018">
-  <title>Casino Exchange</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#071019">
+  <meta name="description" content="Casino Exchange - fiktivt realtime marked til Funcamp/Ungledercamp">
+  <title>Casino Exchange · Multiplayer</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <div id="app">
+  <div id="bootScreen" class="boot-screen">
+    <div class="boot-card">
+      <div class="brand-mark large">CX</div>
+      <h1>CASINO EXCHANGE</h1>
+      <p id="bootMessage">Forbinder til markedet…</p>
+      <div class="boot-spinner"></div>
+    </div>
+  </div>
+
+  <div id="app" class="hidden">
     <header class="topbar">
       <div class="brand-block">
         <div class="brand-mark">CX</div>
         <div>
           <div class="brand-title">CASINO EXCHANGE</div>
-          <div class="brand-subtitle">Fiktivt marked · kun casinopenge</div>
+          <div class="brand-subtitle">Fiktivt realtime-marked · Supabase multiplayer</div>
         </div>
       </div>
 
@@ -32,12 +42,14 @@
           <span id="topGainer" class="metric-value">—</span>
         </div>
         <div class="metric">
-          <span class="metric-label">AKTUELT HOLD</span>
-          <span id="currentTeamLabel" class="metric-value">Ingen</span>
+          <span class="metric-label">FORBINDELSE</span>
+          <span id="connectionStatus" class="connection-pill connecting">CONNECTING</span>
         </div>
       </div>
 
       <div class="topbar-actions">
+        <button id="shareBtn" class="btn ghost">Deltagerlink</button>
+        <button id="screenModeBtn" class="btn ghost">Storskærm</button>
         <button id="leaderboardBtn" class="btn ghost">Leaderboard</button>
         <button id="teamLoginBtn" class="btn primary">Hold-login</button>
         <button id="logoutBtn" class="btn danger hidden">Log ud</button>
@@ -93,12 +105,22 @@
           </div>
           <div id="newsFeed" class="news-feed"></div>
         </section>
+
+        <section id="screenLeaderboardPanel" class="panel screen-leaderboard-panel hidden">
+          <div class="panel-heading compact">
+            <div>
+              <span class="eyebrow gold">LIVE</span>
+              <h2>Leaderboard</h2>
+            </div>
+          </div>
+          <div id="screenLeaderboard"></div>
+        </section>
       </aside>
     </main>
 
     <footer class="footer">
-      <span>Casino Exchange er et spil med fiktive aktiver og fiktive casinopenge.</span>
-      <span id="saveIndicator">Gemmer lokalt i denne browser</span>
+      <span>Kun fiktive casinopenge · ingen rigtige investeringer.</span>
+      <span id="sessionInfo">Realtime multiplayer</span>
     </footer>
   </div>
 
@@ -108,17 +130,29 @@
       <button class="modal-close" data-close-modal="teamLoginModal">×</button>
       <span class="eyebrow">HOLD-LOGIN</span>
       <h2>Log ind på jeres hold</h2>
-      <p class="muted">Vælg hold og indtast den 4-cifrede holdkode.</p>
+      <p class="muted">Flere telefoner kan være logget ind på samme hold. I deler den samme saldo og portefølje.</p>
       <label class="field">
         <span>Hold</span>
         <select id="loginTeamSelect"></select>
       </label>
       <label class="field">
         <span>Holdkode</span>
-        <input id="loginCodeInput" type="password" inputmode="numeric" maxlength="4" placeholder="••••">
+        <input id="loginCodeInput" type="password" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="••••">
       </label>
       <div id="loginError" class="form-error hidden"></div>
       <button id="loginSubmitBtn" class="btn primary wide">Log ind</button>
+    </div>
+  </div>
+
+  <!-- Share -->
+  <div id="shareModal" class="modal-backdrop hidden">
+    <div class="modal-card narrow">
+      <button class="modal-close" data-close-modal="shareModal">×</button>
+      <span class="eyebrow">DELTAGERLINK</span>
+      <h2>Åbn på telefonen</h2>
+      <p class="muted">Alle deltagere bruger det samme link. Holdet vælges først efter siden er åbnet.</p>
+      <div id="shareUrl" class="share-url mono"></div>
+      <button id="copyShareUrlBtn" class="btn primary wide">Kopiér link</button>
     </div>
   </div>
 
@@ -128,9 +162,10 @@
       <button class="modal-close" data-close-modal="adminLoginModal">×</button>
       <span class="eyebrow">INSTRUKTØR</span>
       <h2>Admin-adgang</h2>
+      <p class="muted">Adminfanen fungerer samtidig som markedsmotor. Hold den åben under spillet.</p>
       <label class="field">
         <span>Admin-kode</span>
-        <input id="adminCodeInput" type="password" inputmode="numeric" placeholder="••••">
+        <input id="adminCodeInput" type="password" inputmode="numeric" autocomplete="off" placeholder="••••">
       </label>
       <div id="adminLoginError" class="form-error hidden"></div>
       <button id="adminLoginSubmitBtn" class="btn primary wide">Åbn adminpanel</button>
@@ -146,7 +181,14 @@
           <span class="eyebrow">INSTRUKTØR-KONTROL</span>
           <h2>Adminpanel</h2>
         </div>
-        <span id="adminMarketStatus" class="status-pill closed">CLOSED</span>
+        <div class="admin-head-status">
+          <span id="engineStatus" class="engine-pill idle">ENGINE IDLE</span>
+          <span id="adminMarketStatus" class="status-pill closed">CLOSED</span>
+        </div>
+      </div>
+
+      <div class="admin-notice">
+        <strong>Vigtigt:</strong> Lad denne browserfane være åben, mens markedet kører. Den kalder den centrale Supabase-markedsmotor hvert 5. sekund. Alle telefoner og storskærmen modtager de samme priser realtime.
       </div>
 
       <div class="admin-grid">
@@ -168,7 +210,7 @@
           <h3>Leaderboard</h3>
           <div class="button-grid two">
             <button id="showLeaderboardBtn" class="btn primary">Vis fullscreen</button>
-            <button id="toggleLeaderboardBtn" class="btn ghost">Skjul/vis adgang</button>
+            <button id="toggleLeaderboardBtn" class="btn ghost">Skjul/vis</button>
           </div>
           <div id="adminLeaderboard" class="admin-leaderboard"></div>
         </section>
@@ -177,7 +219,7 @@
       <section class="admin-section full">
         <div class="section-title-row">
           <h3>Hold og startkapital</h3>
-          <span class="muted small">Ændringen justerer kontantbeholdningen direkte.</span>
+          <span class="muted small">“Sæt start” ændrer både startkapital og aktuelle kontanter.</span>
         </div>
         <div id="adminTeamsTable" class="admin-table-wrap"></div>
       </section>
@@ -185,13 +227,13 @@
       <section class="admin-section full">
         <div class="section-title-row">
           <h3>Aktiv-påvirkning</h3>
-          <span class="muted small">+/- påvirker trenden og fader gradvist ud.</span>
+          <span class="muted small">Effekten påvirker sandsynligheden for prisbevægelser og fader gradvist ud.</span>
         </div>
         <div id="adminAssetControls"></div>
       </section>
 
       <section class="admin-section full">
-        <h3>Skjult insider/hacker-event</h3>
+        <h3>Skjult hacker-event</h3>
         <div class="hacker-row">
           <select id="hackerAssetSelect"></select>
           <select id="hackerDelaySelect">
@@ -200,16 +242,17 @@
             <option value="40">40 sek.</option>
           </select>
           <select id="hackerStrengthSelect">
-            <option value="medium">Middel</option>
-            <option value="large" selected>Stor</option>
+            <option value="0.38">Middel</option>
+            <option value="0.68" selected>Stor</option>
+            <option value="0.95">Ekstrem</option>
           </select>
-          <button id="hackerTriggerBtn" class="btn warning">Aktivér skjult effekt</button>
+          <button id="hackerTriggerBtn" class="btn warning">Armér skjult effekt</button>
         </div>
-        <p class="muted small">Ingen officiel nyhed bliver vist. Effekten udløses først efter forsinkelsen.</p>
+        <p class="muted small">Der publiceres ingen nyhed. Effekten aktiveres først efter den valgte forsinkelse.</p>
       </section>
 
       <section class="admin-section full">
-        <h3>Udgiv nyhed</h3>
+        <h3>Udgiv egen nyhed</h3>
         <div class="news-publisher">
           <label class="field">
             <span>Aktiv</span>
@@ -268,13 +311,15 @@
     <div id="breakingHeadline" class="breaking-headline"></div>
   </div>
 
-  <!-- Toast -->
   <div id="toastContainer" class="toast-container"></div>
 
+  <!-- Supabase JS via CDN. Publishable key ligger i config.js; aldrig brug en secret key her. -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/config.js"></script>
-  <script src="js/data.js"></script>
-  <script src="js/state.js"></script>
-  <script src="js/market.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/market-host.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/admin.js"></script>
   <script src="js/app.js"></script>
